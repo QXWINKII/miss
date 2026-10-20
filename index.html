@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#050508">
+<title>i miss you, sweetie</title>
+<style>
+  :root { color-scheme: dark; --pink:#ff7aa8; --rose:#ff3f7e; --violet:#bd91ff; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; width:100%; height:100%; overflow:hidden; background:#050508; }
+  body {
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color:#fff; display:grid; place-items:center;
+    background:
+      radial-gradient(ellipse at 50% 48%, rgba(91,24,65,.16), transparent 42%),
+      radial-gradient(ellipse at 50% 100%, rgba(44,30,81,.13), transparent 50%), #050508;
+  }
+  .grain { position:fixed; inset:-50%; pointer-events:none; opacity:.12; z-index:2;
+    background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.92' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.28'/%3E%3C/svg%3E");
+    animation: grain .24s steps(2) infinite; }
+  @keyframes grain { 0%{transform:translate(0,0)}25%{transform:translate(1%,-1%)}50%{transform:translate(-1%,1%)}75%{transform:translate(1%,1%)}100%{transform:translate(-1%,-1%)} }
+  canvas { position:fixed; inset:0; width:100%; height:100%; display:block; }
+  .vignette { position:fixed; inset:0; pointer-events:none; z-index:1;
+    background:radial-gradient(ellipse at center, transparent 25%, rgba(0,0,0,.35) 72%, rgba(0,0,0,.85) 120%); }
+  .caption { position:fixed; bottom:clamp(22px,5vh,48px); left:0; right:0; z-index:3; text-align:center;
+    font-size:10px; letter-spacing:.32em; text-transform:uppercase; color:rgba(255,220,233,.38);
+    animation: appear 2.4s ease both; user-select:none; }
+  .caption span { color:rgba(255,122,168,.65); }
+  .hint { position:fixed; top:25px; left:0; right:0; text-align:center; z-index:3;
+    color:rgba(255,255,255,.25); font-size:9px; letter-spacing:.28em; text-transform:uppercase;
+    opacity:0; animation: appear 1.5s 2s ease forwards; }
+  @keyframes appear { from{opacity:0; transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+  @media (prefers-reduced-motion: reduce) { .grain { animation:none; } }
+</style>
+</head>
+<body>
+<canvas id="scene" aria-label="Animated message made of glowing symbols that transforms into a heart"></canvas>
+<div class="vignette"></div><div class="grain"></div>
+<div class="hint">made of a thousand little thoughts</div>
+<div class="caption">somewhere between <span>here</span> and <span>there</span></div>
+<script>
+(() => {
+  const canvas = document.getElementById('scene');
+  const ctx = canvas.getContext('2d', { alpha: false });
+  const phrase = 'i miss you, sweetie';
+  const glyphs = '·:*+×♡♥✧.░▒▓/\\|<>[]{}01';
+  let W=0,H=0,dpr=1, particles=[], targetsText=[], targetsHeart=[], phase=0, start=performance.now(), last=0;
+  let pointer={x:-1000,y:-1000};
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function resize(){
+    dpr=Math.min(window.devicePixelRatio||1,2); W=innerWidth; H=innerHeight;
+    canvas.width=Math.round(W*dpr); canvas.height=Math.round(H*dpr);
+    canvas.style.width=W+'px'; canvas.style.height=H+'px'; ctx.setTransform(dpr,0,0,dpr,0,0);
+    buildTargets();
+  }
+  function sampleText(text, font, maxWidth, y, step=4){
+    const off=document.createElement('canvas'), c=off.getContext('2d');
+    off.width=Math.ceil(maxWidth); off.height=Math.ceil(H*.45);
+    c.clearRect(0,0,off.width,off.height);
+    c.fillStyle='#fff'; c.textAlign='center'; c.textBaseline='middle';
+    c.font=font; c.fillText(text,off.width/2,off.height/2, maxWidth);
+    const img=c.getImageData(0,0,off.width,off.height).data, pts=[];
+    for(let yy=0;yy<off.height;yy+=step) for(let xx=0;xx<off.width;xx+=step){
+      if(img[(yy*off.width+xx)*4+3]>100) pts.push({x:xx+(W-off.width)/2,y:yy+(H-off.height)/2});
+    }
+    return pts;
+  }
+  function buildTargets(){
+    const small=W<600, maxWidth=Math.min(W*.88,1100);
+    const fontSize=Math.min(small?W*.082:W*.068, 84);
+    targetsText=sampleText(phrase, `500 ${fontSize}px Georgia, 'Times New Roman', serif`, maxWidth, H/2, small?5:6);
+    // Heart silhouette sampled from a mathematical heart curve.
+    targetsHeart=[];
+    const scale=Math.min(W*.0185,H*.024,13);
+    for(let t=0;t<Math.PI*2;t+=.055){
+      const x=16*Math.pow(Math.sin(t),3);
+      const y=-(13*Math.cos(t)-5*Math.cos(2*t)-2*Math.cos(3*t)-Math.cos(4*t));
+      targetsHeart.push({x:W/2+x*scale,y:H*.48+y*scale});
+    }
+    // Fill the heart interior with nested, softly spaced contour points.
+    for(let k=.16;k<1;k+=.13) for(let t=0;t<Math.PI*2;t+=.105){
+      const x=16*Math.pow(Math.sin(t),3)*k;
+      const y=-(13*Math.cos(t)-5*Math.cos(2*t)-2*Math.cos(3*t)-Math.cos(4*t))*k;
+      targetsHeart.push({x:W/2+x*scale,y:H*.48+y*scale});
+    }
+    const count=Math.max(targetsText.length,targetsHeart.length,900);
+    particles=[];
+    for(let i=0;i<count;i++){
+      const a=targetsText[i%Math.max(1,targetsText.length)] || {x:W/2,y:H/2};
+      const b=targetsHeart[i%targetsHeart.length];
+      particles.push({
+        x:Math.random()*W,y:Math.random()*H,
+        tx:a.x,ty:a.y,hx:b.x,hy:b.y,
+        seed:Math.random()*Math.PI*2, speed:.4+Math.random()*.8,
+        size:.45+Math.random()*.8, glyph:glyphs[Math.floor(Math.random()*glyphs.length)],
+        hue:Math.random()
+      });
+    }
+  }
+  function ease(t){ return t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2; }
+  function draw(now){
+    const dt=Math.min((now-last)/1000||.016,.04); last=now;
+    const elapsed=(now-start)/1000;
+    // A slow reveal, then a seamless looping morph between the words and heart.
+    let blend;
+    if(elapsed<1.8) blend=0;
+    else {
+      const cycle=(elapsed-1.8)%12;
+      blend=cycle<4 ? ease(cycle/4) : cycle<7 ? 1 : 1-ease((cycle-7)/5);
+    }
+    phase=blend;
+    ctx.fillStyle='rgba(5,5,8,.42)'; ctx.fillRect(0,0,W,H);
+    // Tiny distant stars.
+    for(let i=0;i<24;i++){
+      const x=(i*173.7+now*.004*(i%3+1))%W, y=(i*91.3+Math.sin(now*.0003+i)*16)%H;
+      ctx.fillStyle=`rgba(255,205,224,${.08+.13*(.5+.5*Math.sin(now*.001+i))})`;
+      ctx.fillRect(x,y,1,1);
+    }
+    const glow=ctx.createRadialGradient(W/2,H*.48,0,W/2,H*.48,Math.min(W,H)*.48);
+    glow.addColorStop(0,`rgba(109,25,73,${.07+.05*Math.sin(now*.0007)})`);
+    glow.addColorStop(1,'rgba(5,5,8,0)');
+    ctx.fillStyle=glow;ctx.fillRect(0,0,W,H);
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    for(const p of particles){
+      const targetX=p.tx+(p.hx-p.tx)*blend, targetY=p.ty+(p.hy-p.ty)*blend;
+      const float=Math.sin(now*.0007*p.speed+p.seed)*2.5;
+      let x=targetX+Math.cos(now*.00022+p.seed)*(.8+blend*1.4);
+      let y=targetY+float;
+      // Gentle cursor ripple, never enough to break the silhouette.
+      const dx=x-pointer.x,dy=y-pointer.y,dist=Math.hypot(dx,dy);
+      if(dist<100){const force=(100-dist)/100*8;x+=dx/(dist||1)*force;y+=dy/(dist||1)*force;}
+      const alpha=.38+.48*(.5+.5*Math.sin(now*.0012*p.speed+p.seed));
+      const heartTint=blend>.2;
+      const hue=heartTint ? (p.hue>.82?'#ffe8f0':p.hue>.48?'#ff7aa8':'#ff477f') : (p.hue>.8?'#ffeaf2':p.hue>.5?'#e7a7ff':'#f5a2c1');
+      ctx.globalAlpha=alpha*(.65+.35*Math.sin(blend*Math.PI));
+      ctx.fillStyle=hue;
+      ctx.shadowColor=heartTint?'rgba(255,53,119,.72)':'rgba(255,122,168,.48)';
+      ctx.shadowBlur=heartTint?7:4;
+      ctx.font=`${p.size<1.1?'5':'6'}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+      ctx.fillText(p.glyph,x,y);
+      ctx.globalAlpha=1;
+    }
+    ctx.shadowBlur=0;
+    requestAnimationFrame(draw);
+  }
+  window.addEventListener('resize',resize);
+  window.addEventListener('pointermove',e=>{pointer.x=e.clientX;pointer.y=e.clientY;},{passive:true});
+  window.addEventListener('pointerleave',()=>{pointer.x=-1000;pointer.y=-1000;});
+  resize();
+  ctx.fillStyle='#050508';ctx.fillRect(0,0,W,H);
+  requestAnimationFrame(draw);
+})();
+</script>
+</body>
+</html>
